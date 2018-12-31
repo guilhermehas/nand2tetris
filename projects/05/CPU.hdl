@@ -34,25 +34,42 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-        Mux16(a=instruction, b=AluOut, sel=instruction[0], out=inA);
+    Mux16(a=AluOut, b=instruction, sel=notInst, out=Ain);
 
-        ARegister(in=inA, load=instruction[10], out=outA, out[0..14]=addressM);
-        Mux16(a=inM, b=outA, sel=instruction[0], out=inAlu2);
+    Or(a=notInst, b=instruction[5], out=loadA);
+    ARegister(in=Ain, load=loadA, out=Aout, out[0..14]=addressM);
 
-        DRegister(in=AluOut, load=instruction[11], out=inAlu1);
-        ALU(x=inAlu1, y=inAlu2, 
-            zx=instruction[5], nx=instruction[6], zy=instruction[7], ny=instruction[8], f=instruction[9], no=instruction[10], 
-            out=outM, out=AluOut, zr=zr, ng=ng);
-        
-        Or(a=zr, b=ng, out=npos);
-        Not(in=npos, out=pos);
-        And(a=instruction[13], b=ng, out=ifjmp0);
-        And(a=instruction[14], b=zr, out=ifjmp1);
-        And(a=instruction[15], b=pos, out=ifjmp2);
-        Or(a=ifjmp0, b=ifjmp1, out=ifjmp01);
-        Or(a=ifjmp01, b=ifjmp2, out=ifjmp);
+    And(a=instruction[15], b=instruction[12], out=selAluA);
+    Mux16(a=Aout, b=inM, sel=selAluA, out=AluA);
 
-        PC(in=AluOut, load=ifjmp, inc=true, reset=reset, out[0..14]=pc);
-        
-        And(a=instruction[0], b=instruction[12], out=writeM);
+    And(a=instruction[15], b=instruction[4], out=loadD);
+    DRegister(in=AluOut, load=loadD, out=AluD);
+
+    Or(a=notInst, b=instruction[11], out=zx);
+    Or(a=notInst, b=instruction[10], out=nx);
+    And(a=instruction[15], b=instruction[9], out=zy);
+    And(a=instruction[15], b=instruction[8], out=ny);
+    And(a=instruction[15], b=instruction[7], out=f);
+    And(a=instruction[15], b=instruction[6], out=no);
+
+    ALU(x=AluD, y=AluA, 
+        zx=zx, nx=nx, zy=zy, ny=ny, f=f, no=no,
+        out=outM, out=AluOut, zr=zr, ng=ng);
+    
+    Or(a=zr, b=ng, out=negZ);
+    Not(in=negZ, out=pos);
+
+    And(a=instruction[0], b=pos, out=j1);
+    And(a=instruction[1], b=zr, out=j2);
+    And(a=instruction[2], b=ng, out=j3);
+
+    Or(a=j1, b=j2, out=j12);
+    Or(a=j12, b=j3, out=j123);
+    And(a=j123, b=instruction[15], out=loadPC);
+
+    PC(in=Aout, reset=reset, load=loadPC, inc=true, out[0..14]=pc);
+
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    Not(in=instruction[15], out=notInst);
 }
