@@ -1,8 +1,3 @@
-// This file is part of www.nand2tetris.org
-// and the book "The Elements of Computing Systems"
-// by Nisan and Schocken, MIT Press.
-// File name: projects/05/Computer.hdl
-
 /**
  * The HACK computer, including CPU, ROM and RAM.
  * When reset is 0, the program stored in the computer's ROM executes.
@@ -19,5 +14,9 @@ CHIP Computer {
     IN reset;
 
     PARTS:
-    // Put your code here:
+    ROM32K(address=addressROM, out=outROM);
+    Memory(in=inRAM, load=loadRAM, address=addressRAM, out=outRAM);
+
+    CPU(inM=outRAM, instruction=outROM, reset=reset,
+        outM=inRAM, writeM=loadRAM, addressM=addressRAM, pc=addressROM);
 }
