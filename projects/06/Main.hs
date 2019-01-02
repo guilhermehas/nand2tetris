@@ -10,9 +10,9 @@ removeSpacesComments :: String -> String
 removeSpacesComments = (filter (/=' ')) . head . (splitOn "//")
 
 splitCodeClean :: String -> [String]
-splitCodeClean = (map removeSpacesComments) . (splitOn ['\n'])
+splitCodeClean = (filter (/= "")) . (map removeSpacesComments) . (splitOn ['\n'])
 
-data Line = Local String | ACommand String | DCommand String String String
+data Line = Local String | ACommand String | DCommand String String String deriving (Show) 
 
 parseLine :: String -> Line
 parseLine s = 
@@ -26,9 +26,9 @@ parseLine s =
         in
             if isFirstJ then DCommand "" "" $ dParts !! 0
             else
-                let cs = splitOn ";" part0
+                let cs = splitOn "=" part0
                     cs0 = cs !! 0
-                    cs1 = cs !! 1
+                    cs1 = if length cs >= 2 then cs !! 1 else ""
                  in
                     if length dParts == 1 
                        then DCommand cs0 cs1 ""
@@ -52,14 +52,15 @@ nextStepSymbol (ACommand s) (count, table) =
     if not (isDigit $ head s) && not (M.member s table)
        then (count+1, M.insert s count table)
        else (count, table) 
+nextStepSymbol _ ct = ct
 
 toTableValue :: [Line] -> TableSymbols
 toTableValue lines = table2
     where table0 = tableValueList
-          (_, table1) = foldr nextStepLabel (0, table0) lines
-          (_, table2) = foldr nextStepSymbol (16, table1) lines
+          (_, table1) = foldl (flip nextStepLabel) (0, table0) lines
+          (_, table2) = foldl (flip nextStepSymbol) (16, table1) lines
 
-data IntegerLine = ACommandI Int | DCommandI String String String
+data IntegerLine = ACommandI Int | DCommandI String String String deriving (Show) 
 
 fromJust :: Maybe a -> a
 fromJust Nothing = error "Maybe.fromJust: Nothing"
@@ -90,7 +91,7 @@ intToBin 0 _ = []
 intToBin size n = (n `mod` 2) : intToBin (size - 1) (n `div` 2)
 
 compM :: M.HashMap String [Int]
-compM = M.fromList [("0", [0, 1, 0, 1, 0, 1, 0]), ("1", [0, 1, 1, 1, 1, 1, 1]), ("-1", [0, 1, 1, 1, 0, 1, 0]), ("D", [0, 0, 0, 1, 1, 0, 0]), ("A", [0, 1, 1, 0, 0, 0, 0]), ("!D", [0, 0, 0, 1, 1, 0, 1]), ("!A", [0, 1, 1, 0, 0, 0, 1]), ("-D", [0, 0, 0, 1, 1, 1, 1]), ("-A", [0, 1, 1, 0, 0, 1, 1]), ("D+1", [0, 0, 1, 1, 1, 1, 1]), ("A+1", [0, 1, 1, 0, 1, 1, 1]), ("D-1", [0, 0, 0, 1, 1, 1, 0]), ("A-1", [0, 1, 1, 0, 0, 1, 0]), ("D+A", [0, 0, 0, 0, 0, 1, 0]), ("D-A", [0, 0, 1, 0, 0, 1, 1]), ("A-D", [0, 0, 0, 0, 1, 1, 1]), ("D&A", [0, 0, 0, 0, 0, 0, 0]), ("D|A", [0, 0, 1, 0, 1, 0, 1])]
+compM = M.fromList [("", [0, 0, 0, 0, 0, 0, 0]), ("0", [0, 1, 0, 1, 0, 1, 0]), ("1", [0, 1, 1, 1, 1, 1, 1]), ("-1", [0, 1, 1, 1, 0, 1, 0]), ("D", [0, 0, 0, 1, 1, 0, 0]), ("A", [0, 1, 1, 0, 0, 0, 0]), ("M", [1, 1, 1, 0, 0, 0, 0]), ("!D", [0, 0, 0, 1, 1, 0, 1]), ("!A", [0, 1, 1, 0, 0, 0, 1]), ("!M", [1, 1, 1, 0, 0, 0, 1]), ("-D", [0, 0, 0, 1, 1, 1, 1]), ("-A", [0, 1, 1, 0, 0, 1, 1]), ("-M", [1, 1, 1, 0, 0, 1, 1]), ("D+1", [0, 0, 1, 1, 1, 1, 1]), ("A+1", [0, 1, 1, 0, 1, 1, 1]), ("M+1", [1, 1, 1, 0, 1, 1, 1]), ("D-1", [0, 0, 0, 1, 1, 1, 0]), ("A-1", [0, 1, 1, 0, 0, 1, 0]), ("M-1", [1, 1, 1, 0, 0, 1, 0]), ("D+A", [0, 0, 0, 0, 0, 1, 0]), ("D+M", [1, 0, 0, 0, 0, 1, 0]), ("D-A", [0, 0, 1, 0, 0, 1, 1]), ("D-M", [1, 0, 1, 0, 0, 1, 1]), ("A-D", [0, 0, 0, 0, 1, 1, 1]), ("M-D", [1, 0, 0, 0, 1, 1, 1]), ("D&A", [0, 0, 0, 0, 0, 0, 0]), ("D&M", [1, 0, 0, 0, 0, 0, 0]), ("D|A", [0, 0, 1, 0, 1, 0, 1]), ("D|M", [1, 0, 1, 0, 1, 0, 1])]
 
 boolToInt True = 1
 boolToInt False = 0
@@ -110,7 +111,9 @@ convertCommand (ACommandI s) = reverse $ intToBin 16 s
 convertCommand (DCommandI dest comp jump) = [1, 1, 1] ++ fromDict comp compM ++ toDest dest ++ fromDict jump jumpM
 
 compiler :: String -> [[Int]]
-compiler = (map convertCommand) . linesToIlines . (map parseLine) . splitCodeClean . removeSpacesComments
+compiler = map convertCommand . linesToIlines . map parseLine . splitCodeClean
 
 main :: IO ()
-main = putStrLn "Hello, Haskell!"
+main = do 
+    contents <- getContents
+    putStr $ intercalate ['\n'] $ map (concat . map show) $ compiler contents

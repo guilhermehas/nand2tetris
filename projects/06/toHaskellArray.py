@@ -23,7 +23,7 @@ def getElems():
         el = el.split(' ')
         binEls = el[-6:]
         yield (el[0], ['0'] + binEls)
-        if len(binEls) == 8:
+        if len(el) == 8:
             yield (el[1], ['1'] + binEls)
 
 
